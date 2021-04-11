@@ -8,7 +8,7 @@ from time import sleep
 
 import click
 
-from server import OPEN, QUIT, FILTERED_ENTRIES, DEFAULT_PID_PATH
+from .server import OPEN, QUIT, FILTERED_ENTRIES, DEFAULT_PID_PATH
 
 
 class Client:
@@ -47,7 +47,7 @@ class Client:
 
     def prepare_server(self):
         if not self.db:
-            self.db = click.prompt("Open database: ", type=click.Path(exists=True))
+            self.db = click.prompt("Open database", type=click.Path(exists=True))
         server_script = Path(__file__).parent.joinpath('server.py')
         ppn = [sys.executable, server_script, self.db, '-pf', self.pid_file, '-t', str(self.timeout)]
         if self.key_file:
@@ -64,7 +64,7 @@ class Client:
             connection.close()
             raise RuntimeError("Cant create server for database.")
 
-        password = click.prompt("Password :", hide_input=True)
+        password = click.prompt("Password", hide_input=True)
 
         connection.send(password.encode() + b'\n')
 
@@ -120,7 +120,7 @@ def choose_entry(names, no_prompt=False):
 
 
 KEEPASSXCCLI2_CONFIG_FILE_NAME = '.keepassxccli2.ini'
-KEEPASSXCCLI2_CONFIG_FILE_PATH = str(Path.home().joinpath(KEEPASSXCCLI2_CONFIG_FILE_NAME))
+KEEPASSXCCLI2_CONFIG_FILE_PATH = lambda: str(Path.home().joinpath(KEEPASSXCCLI2_CONFIG_FILE_NAME))
 KEEPASSXCCLI2_CONFIG_ENV_PREFIX = 'KEEPASSXCCLI2'
 KEEPASSXCCLI2_ITEMS = ['db', 'pid_file', 'key_file', 'yubikey', 'timeout']
 KEEPASSXCCLI2_CONFIG_NONAME_SECTION = 'noname'
@@ -137,7 +137,7 @@ def load_config(name, config_file):
     c = ConfigParser()
     files = [
         Path.home().joinpath('.config', KEEPASSXCCLI2_CONFIG_FILE_NAME),
-        KEEPASSXCCLI2_CONFIG_FILE_PATH
+        KEEPASSXCCLI2_CONFIG_FILE_PATH()
     ]
     if config_file and config_file not in files:
         files.append(config_file)
@@ -146,31 +146,27 @@ def load_config(name, config_file):
     if c.has_section(name):
         d = {}
         for key in KEEPASSXCCLI2_ITEMS:
-            d[key] = (
-                os.getenv(f'{KEEPASSXCCLI2_CONFIG_ENV_PREFIX}_{name.upper()}_{key.upper()}', None)
-                or c.get(name, key, fallback=None)
-            )
+            os_env = os.getenv(f'{KEEPASSXCCLI2_CONFIG_ENV_PREFIX}_{name.upper()}_{key.upper()}', None)
+            print(key, os_env)
+            d[key] = os_env or c.get(name, key, fallback=None)
         if not d['pid_file']:
             raise ValueError(f"Set pid_file for section {name}")
     elif name == KEEPASSXCCLI2_CONFIG_NONAME_SECTION:
         d = {**KEEPASSXCCLI2_CONFIG_NONAME}
+        prefix = f'{KEEPASSXCCLI2_CONFIG_ENV_PREFIX}_{KEEPASSXCCLI2_CONFIG_NONAME_SECTION.upper()}_'
         for key in d:
-            if val := os.getenv(f'{KEEPASSXCCLI2_CONFIG_ENV_PREFIX}_{key.upper()}', None):
+            if val := os.getenv(prefix + key.upper(), None):
                 d[key] = val
     else:
-        raise ValueError(f"Section {name} does not exists in config files {', '.join(files)}")
+        raise ValueError(f"Section {name} does not exists in config files {', '.join(map(str, files))}")
 
-    d['timeout'] = d['timeout'] or 0.3
+    d['timeout'] = float(d['timeout']) if d['timeout'] else 0.3
     return d
-
-
-HELP = """
-"""
 
 
 @click.command(context_settings={'ignore_unknown_options': True})
 @click.option('-n', '--name', type=str, help="name for config section", default=KEEPASSXCCLI2_CONFIG_NONAME_SECTION, show_default=True)
-@click.option('-cf', '--config-file', type=click.Path(exists=True), help=f"[default: {KEEPASSXCCLI2_CONFIG_FILE_PATH}]")
+@click.option('-cf', '--config-file', type=click.Path(exists=True), help=f"[default: {KEEPASSXCCLI2_CONFIG_FILE_PATH()}]")
 @click.option('-np', '--no-prompt', is_flag=True, help="No prompt will be invoked. Useful for use in scripts.")
 @click.argument('cmd', nargs=-1, required=True)
 def raw(name, config_file, cmd, no_prompt):
@@ -205,7 +201,7 @@ ATTRIBUTE_OPTIONS = ['password', 'username', 'url', 'notes', 'title']
 
 @click.command()
 @click.option('-n', '--name', type=str, help="name for config section", default=KEEPASSXCCLI2_CONFIG_NONAME_SECTION, show_default=True)
-@click.option('-cf', '--config-file', type=click.Path(exists=True), help=f"[default: {KEEPASSXCCLI2_CONFIG_FILE_PATH}]")
+@click.option('-cf', '--config-file', type=click.Path(exists=True), help=f"[default: {KEEPASSXCCLI2_CONFIG_FILE_PATH()}]")
 @click.option('-s', '--show', is_flag=True, help="Instead of copying it just write the attribute to console.")
 @click.option('-np', '--no-prompt', is_flag=True, help="No prompt will be invoked. Useful for use in scripts.")
 @click.argument('entry', nargs=1)
