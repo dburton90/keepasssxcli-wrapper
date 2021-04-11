@@ -8,17 +8,21 @@ from time import sleep
 
 import click
 
+from .gui import get_password_with_dialog
 from .server import OPEN, QUIT, FILTERED_ENTRIES, DEFAULT_PID_PATH
 
 
 class Client:
     GET_ATTRIBUTE = 'get '
 
-    def __init__(self, db, pid_file, key_file, yubikey, timeout, no_prompt):
+    def __init__(self, db, pid_file, key_file, yubikey, timeout, no_prompt, window_for_password):
         self.pid_file = pid_file
         self.server = None
         self.timeout = timeout
+
         self.no_prompt = no_prompt
+        self.window_for_password = window_for_password
+
         self.db = db
         self.key_file = key_file
         self.yubikey = yubikey
@@ -47,6 +51,8 @@ class Client:
 
     def prepare_server(self):
         if not self.db:
+            if self.no_prompt:
+                return False
             self.db = click.prompt("Open database", type=click.Path(exists=True))
         server_script = Path(__file__).parent.joinpath('server.py')
         ppn = [sys.executable, server_script, self.db, '-pf', self.pid_file, '-t', str(self.timeout)]
@@ -64,7 +70,12 @@ class Client:
             connection.close()
             raise RuntimeError("Cant create server for database.")
 
-        password = click.prompt("Password", hide_input=True)
+        if self.window_for_password:
+            password = get_password_with_dialog(self.db)
+        elif not self.no_prompt:
+            password = click.prompt("Password", hide_input=True)
+        else:
+            return False
 
         connection.send(password.encode() + b'\n')
 
@@ -80,7 +91,7 @@ class Client:
             connection.connect(self.pid_file)
         except (FileNotFoundError, ConnectionRefusedError):
             connection.close()
-            if try_prepare and not self.no_prompt:
+            if try_prepare:
                 prepared = self.prepare_server()
                 if prepared:
                     return self.call_server(cmd, False)
@@ -168,8 +179,9 @@ def load_config(name, config_file):
 @click.option('-n', '--name', type=str, help="name for config section", default=KEEPASSXCCLI2_CONFIG_NONAME_SECTION, show_default=True)
 @click.option('-cf', '--config-file', type=click.Path(exists=True), help=f"[default: {KEEPASSXCCLI2_CONFIG_FILE_PATH()}]")
 @click.option('-np', '--no-prompt', is_flag=True, help="No prompt will be invoked. Useful for use in scripts.")
+@click.option('-wfp', '--window-for-password', is_flag=True, help="Window dialog for open database password.")
 @click.argument('cmd', nargs=-1, required=True)
-def raw(name, config_file, cmd, no_prompt):
+def raw(name, config_file, cmd, no_prompt, window_for_password):
     """
     Simple wrapper around keepassxc-cli open. CMD is passed to keepassxc interactive shell.
 
@@ -191,7 +203,7 @@ def raw(name, config_file, cmd, no_prompt):
     kpowr -n mydb edit -t "new title" google
     """
     config = load_config(name, config_file)
-    c = Client(no_prompt=no_prompt, **config)
+    c = Client(no_prompt=no_prompt, window_for_password=window_for_password, **config)
     res = c.run_command(" ".join(cmd))
     print(res, end="" if cmd[0] == 'show' else "\n")
 
@@ -204,9 +216,10 @@ ATTRIBUTE_OPTIONS = ['password', 'username', 'url', 'notes', 'title']
 @click.option('-cf', '--config-file', type=click.Path(exists=True), help=f"[default: {KEEPASSXCCLI2_CONFIG_FILE_PATH()}]")
 @click.option('-s', '--show', is_flag=True, help="Instead of copying it just write the attribute to console.")
 @click.option('-np', '--no-prompt', is_flag=True, help="No prompt will be invoked. Useful for use in scripts.")
+@click.option('-wfp', '--window-for-password', is_flag=True, help="Window dialog for open database password.")
 @click.argument('entry', nargs=1)
 @click.argument('attribute', nargs=1, default='password', type=click.Choice(ATTRIBUTE_OPTIONS))
-def attr(show, entry, attribute, no_prompt, name, config_file):
+def attr(show, entry, attribute, no_prompt, name, config_file, window_for_password):
     """
     Copy ATTRIBUTE [default: password] from ENTRY to clipboard.
 
@@ -229,7 +242,7 @@ def attr(show, entry, attribute, no_prompt, name, config_file):
     kpowg --np -s gmail
     """
     config = load_config(name, config_file)
-    c = Client(no_prompt=no_prompt, **config)
+    c = Client(no_prompt=no_prompt, window_for_password=window_for_password, **config)
     entries = c.call_server(f'{FILTERED_ENTRIES} {entry}').splitlines()
     entry = choose_entry(entries, no_prompt)
     if entry:
@@ -240,7 +253,3 @@ def attr(show, entry, attribute, no_prompt, name, config_file):
             print(f'{attribute} for entry {entry} has been clipped')
     else:
         print("no entry was found")
-
-
-if __name__ == '__main__':
-    attr()
