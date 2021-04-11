@@ -4,6 +4,23 @@ Create a wrapper around **keepassxc-cli open** command and keep it open without 
 It allows you to access any password (or other attributes) from database in **terminal** or **scripts** without 
 need of providing the password to the database again.
 
+## install
+I strongly recommend use of **pipx** to install keepassxc-cli.
+```shell
+pipx install keepassxcli-wrapper
+```
+Eventually you can install it by yourself in global 
+```shell
+pip install keepassxcli-wrapper
+```
+or better in some virtualenv, for example like this:
+```shell
+python -m venv ~/.keepassxcli-wrapper
+.keepassxcli-wrapper/bin/pip install .keepassxcli-wrapper
+echo "alias kpowg=~/.keepassxcli-wrapper/bin/kpowg" >> .bashrc
+echo "alias kpowr=~/.keepassxcli-wrapper/bin/kpowr" >> .bashrc
+```
+
 ## How it works
 When you ask for a password for some entry in keepassxc db and the db is not open yet, you will be prompted for 
 the keepassxc database password. It will start a server in a background with opened **keepassxcli open** session.
