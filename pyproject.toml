@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "keepasxcli-wrapper"
-version = "0.1.1"
+version = "0.1.0"
 description = "Wrapper arround keepassxc-cli open command."
 authors = ["Daniel Barton <daniel.barton@seznam.cz>"]
 
@@ -20,4 +20,3 @@ build-backend = "poetry.core.masonry.api"
 [tool.poetry.scripts]
 kpowg = 'keepasxcli_wrapper.client:attr'
 kpowr = 'keepasxcli_wrapper.client:raw'
-kpow-server = 'skeepasxcli_wrapper.erver:run_server'
