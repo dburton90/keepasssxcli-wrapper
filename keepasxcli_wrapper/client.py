@@ -154,22 +154,19 @@ def load_config(name, config_file):
         files.append(config_file)
     c.read(files)
 
-    if c.has_section(name):
-        d = {}
-        for key in KEEPASSXCCLI2_ITEMS:
-            os_env = os.getenv(f'{KEEPASSXCCLI2_CONFIG_ENV_PREFIX}_{name.upper()}_{key.upper()}', None)
-            print(key, os_env)
-            d[key] = os_env or c.get(name, key, fallback=None)
-        if not d['pid_file']:
-            raise ValueError(f"Set pid_file for section {name}")
-    elif name == KEEPASSXCCLI2_CONFIG_NONAME_SECTION:
+    if name == KEEPASSXCCLI2_CONFIG_NONAME_SECTION and not c.has_section(name):
         d = {**KEEPASSXCCLI2_CONFIG_NONAME}
         prefix = f'{KEEPASSXCCLI2_CONFIG_ENV_PREFIX}_{KEEPASSXCCLI2_CONFIG_NONAME_SECTION.upper()}_'
         for key in d:
             if val := os.getenv(prefix + key.upper(), None):
                 d[key] = val
     else:
-        raise ValueError(f"Section {name} does not exists in config files {', '.join(map(str, files))}")
+        d = {}
+        for key in KEEPASSXCCLI2_ITEMS:
+            os_env = os.getenv(f'{KEEPASSXCCLI2_CONFIG_ENV_PREFIX}_{name.upper()}_{key.upper()}', None)
+            d[key] = os_env or c.get(name, key, fallback=None)
+        if not d['pid_file']:
+            raise ValueError(f"Set pid_file for section {name}")
 
     d['timeout'] = float(d['timeout']) if d['timeout'] else 0.3
     return d

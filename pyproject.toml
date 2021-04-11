@@ -3,6 +3,10 @@ name = "keepasxcli-wrapper"
 version = "0.1.0"
 description = "Wrapper arround keepassxc-cli open command."
 authors = ["Daniel Barton <daniel.barton@seznam.cz>"]
+license = "MIT"
+readme = "README.md"
+homepage = "https://github.com/dburton90/keepasssxcli-wrapper"
+keywords = ["keepassxc", "keepassxci-cli"]
 
 [tool.poetry.dependencies]
 python = "3.8"
