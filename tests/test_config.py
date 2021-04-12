@@ -39,11 +39,15 @@ def base_config(tmpdir_factory, db1, pid_file):
 
 
 @fixture
-def home_config(tmpdir_factory, db1, pid_file, monkeypatch):
+def fake_home(tmpdir_factory, monkeypatch):
     fakehome = tmpdir_factory.mktemp('fake_home')
     monkeypatch.setattr(client.Path, "home", lambda: Path(str(fakehome)))
+    return fakehome
 
-    ff = fakehome.join(client.KEEPASSXCCLI2_CONFIG_FILE_NAME)
+
+@fixture
+def home_config(db1, pid_file, fake_home):
+    ff = fake_home.join(client.KEEPASSXCCLI2_CONFIG_FILE_NAME)
     c = create_config()
     add_section(c, client.KEEPASSXCCLI2_CONFIG_NONAME_SECTION, str(db1) + 'home', pid_file + 'home', timeout=str(4))
     with open(ff, 'w') as f:
@@ -94,7 +98,7 @@ def test_explicit_config_override_by_env(base_config, db1, pid_file, db_noname_i
     }
 
 
-def test_no_config():
+def test_no_config(fake_home):
     cfg = client.load_config(client.KEEPASSXCCLI2_CONFIG_NONAME_SECTION, None)
     assert cfg == {
         'db': None,

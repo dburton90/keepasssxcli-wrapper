@@ -3,6 +3,8 @@ import asyncio
 import os
 import tempfile
 from difflib import SequenceMatcher
+from functools import reduce
+from operator import mul
 from pathlib import Path
 
 import click
@@ -35,16 +37,6 @@ FILTERED_ENTRIES = 'locate_cached'
 DEFAULT_PID_PATH = os.path.join(tempfile.gettempdir(), 'kdbx.pid')
 
 
-def sort_entry_filter_key(term):
-    def f(entry):
-        if term == entry:
-            return 1
-        if entry.startswith(term):
-            return 0.9 + (pow(len(entry), -1) / 10)
-        return SequenceMatcher(None, term, entry).ratio()
-    return f
-
-
 class Handler:
 
     def __init__(self, process, pid_file):
@@ -53,23 +45,29 @@ class Handler:
         self.entries = []
         self.pid_file = pid_file
         self.waiting_for_password = True
+        self.server = None
 
     def set_password(self, password):
         if self.waiting_for_password:
             self.process.sendline(password)
             self.result()
-            self._refresh_cache()
+            self._update_db_name()
             if self.db_name != '':
                 self.waiting_for_password = False
                 return f"SUCCESS: Database {self.db_name} is now open"
             else:
                 self.quit()
+
                 return "Database could not be opened. Probably wrong password."
 
     def call_command(self, cmd):
         self.process.sendline(cmd)
         _, data = self.result()
         return self.process.crlf.join(data)
+
+    def _update_db_name(self):
+        self.process.sendline('')
+        self.db_name, _ = self.result()
 
     def result(self, timeout=None):
         timeout = timeout if timeout is not None else self.process.timeout
@@ -90,21 +88,14 @@ class Handler:
 
         return db, lines[1:]
 
-    def _refresh_cache(self):
-        self.process.sendline('ls')
-        self.db_name, entries = self.result(max(1, self.process.timeout))  # increase timeout for listing
-        self.entries = [e.strip().lower() for e in entries]
-
-    def run_in_background(self):
-        if os.fork():
-            return
-        asyncio.run(self.async_server())
-        exit(os.EX_OK)
-
     async def async_server(self):
         server = await asyncio.start_unix_server(self._handler, self.pid_file)
         async with server:
-            await server.serve_forever()
+            self.server = asyncio.Task(server.serve_forever())
+            try:
+                await self.server
+            except asyncio.CancelledError:
+                print(f"Serving database {self.db_name} stopped.")
 
     def quit(self):
         self.process.sendline('quit')
@@ -113,10 +104,8 @@ class Handler:
         return 'Database is closed'
 
     def get_filtered_entries(self, term):
-        response = filter(lambda e: term in e, self.entries)
-        response = sorted(response, key=sort_entry_filter_key(term), reverse=True)
-
-        return self.process.crlf.join(response)
+        response = self.call_command('locate ' + term)
+        return response
 
     async def _handler(self, reader, writer):
         data = (await reader.readuntil()).decode().strip()
@@ -136,14 +125,14 @@ class Handler:
 
             writer.write(response.encode())
         else:
-            writer.write("Database is closed.")
+            writer.write(b"Database is closed.")
         await writer.drain()
         writer.close()
 
         if self.process:
-            self._refresh_cache()
-        else:
-            exit(os.EX_OK)
+            self._update_db_name()
+        if not self.process and self.server:
+            self.server.cancel()
 
 
 @click.command()
@@ -151,10 +140,17 @@ class Handler:
 @click.option('-t', '--timeout', type=float, default=0.5)
 @click.option('-kf', '--key-file', type=click.Path())
 @click.option('-yk', '--yubikey', type=str)
+@click.option('-pp', '--password-prompt', is_flag=True)
 @click.argument('database')
-def run_server(pid_file, timeout, database, key_file, yubikey):
+def run_server(pid_file, timeout, database, key_file, yubikey, password_prompt):
     p = open_db(database, timeout, key_file, yubikey)
     h = Handler(p, pid_file)
+    if password_prompt:
+        p = click.prompt("Password", hide_input=True)
+        print(f'"{p}"')
+        print(h.set_password(p))
+        if h.process is None:
+            return
     asyncio.run(h.async_server())
 
 
