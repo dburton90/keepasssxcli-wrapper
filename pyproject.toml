@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "keepasxcli-wrapper"
-version = "0.1.5"
+version = "0.1.6"
 description = "Wrapper arround keepassxc-cli open command."
 authors = ["Daniel Barton <daniel.barton@seznam.cz>"]
 license = "MIT"
