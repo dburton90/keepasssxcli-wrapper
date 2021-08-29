@@ -77,7 +77,7 @@ class Handler:
         try:
             while True:
                 self.process.expect(res, timeout=timeout)
-                lines.append(self.process.before)
+                lines.append(self.process.before.split('\r')[-1])
         except TIMEOUT:
             pass
 
@@ -104,8 +104,11 @@ class Handler:
         return 'Database is closed'
 
     def get_filtered_entries(self, term):
-        response = self.call_command('locate ' + term)
-        return response
+        terms = term.split()
+        self.process.sendline('locate ' + terms[0])
+        _, data = self.result()
+        data = [l for l in data if all(f in l for f in terms)]
+        return self.process.crlf.join(data)
 
     async def _handler(self, reader, writer):
         data = (await reader.readuntil()).decode().strip()
