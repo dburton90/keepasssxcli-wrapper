@@ -7,16 +7,16 @@ need of providing the password to the database again.
 ## install
 I strongly recommend use of **pipx** to install keepassxc-cli.
 ```shell
-pipx install keepassxcli-wrapper
+pipx install keepasxcli-wrapper
 ```
 Eventually you can install it by yourself in global 
 ```shell
-pip install keepassxcli-wrapper
+pip install keepasxcli-wrapper
 ```
 or better in some virtualenv, for example like this:
 ```shell
 python -m venv ~/.keepassxcli-wrapper
-.keepassxcli-wrapper/bin/pip install .keepassxcli-wrapper
+.keepassxcli-wrapper/bin/pip install keepasxcli-wrapper
 echo "alias kpowg=~/.keepassxcli-wrapper/bin/kpowg" >> .bashrc
 echo "alias kpowr=~/.keepassxcli-wrapper/bin/kpowr" >> .bashrc
 ```
